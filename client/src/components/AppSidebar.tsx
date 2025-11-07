@@ -57,7 +57,7 @@ export function AppSidebar() {
   const [location] = useLocation();
 
   return (
-    <Sidebar data-testid="app-sidebar">
+    <Sidebar collapsible="icon" data-testid="app-sidebar">
       <SidebarHeader className="border-b p-4">
         <div className="flex items-center gap-2 font-bold text-lg">
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
