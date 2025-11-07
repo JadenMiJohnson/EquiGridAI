@@ -59,12 +59,14 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" data-testid="app-sidebar">
       <SidebarHeader className="border-b p-4">
-        <div className="flex items-center gap-2 font-bold text-lg">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground text-sm">EG</span>
+        <Link href="/" data-testid="link-home">
+          <div className="flex items-center gap-2 font-bold text-lg hover-elevate active-elevate-2 cursor-pointer rounded-md p-2 -m-2">
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground text-sm">EG</span>
+            </div>
+            <span>EquiGrid AI</span>
           </div>
-          <span>EquiGrid AI</span>
-        </div>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
