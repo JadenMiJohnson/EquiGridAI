@@ -190,12 +190,22 @@ export const cleanerHourSchema = z.object({
   label: z.string(),
 });
 
+export const zipMetricsSchema = z.object({
+  load_kwh: z.number(),
+  carbon_intensity_kg_per_kwh: z.number(),
+  cii: z.number(),
+  aqi: z.number(),
+  price_cents_per_kwh: z.number(),
+});
+
 export const zoneDataSchema = z.object({
   kpis: zoneKpisSchema,
   trends_24h: z.array(hourDataSchema),
   cleaner_hours: z.array(cleanerHourSchema),
+  all_zips_metrics: z.record(z.string(), zipMetricsSchema).optional(),
 });
 
+export type ZipMetrics = z.infer<typeof zipMetricsSchema>;
 export type ZoneKpis = z.infer<typeof zoneKpisSchema>;
 export type HourData = z.infer<typeof hourDataSchema>;
 export type CleanerHour = z.infer<typeof cleanerHourSchema>;

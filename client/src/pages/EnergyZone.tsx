@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ZipSearchBar } from "@/components/ZipSearchBar";
 import { KpiCard } from "@/components/KpiCard";
 import { CleanerHours } from "@/components/CleanerHours";
+import { EnergyZoneMap } from "@/components/EnergyZoneMap";
 import { Card } from "@/components/ui/card";
 import { DEFAULT_ATLANTA_ZIP } from "@/lib/constants";
 import { formatNumber, formatKwh } from "@/lib/formatters";
@@ -50,28 +51,13 @@ export default function EnergyZone() {
               <MapIcon className="h-5 w-5 text-primary" />
               Energy Zone Map - ZIP {searchZip}
             </h2>
-            <div className="flex gap-2">
-              <button className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary border border-primary/20">
-                Load
-              </button>
-              <button className="px-3 py-1.5 text-xs rounded-lg border">
-                Carbon
-              </button>
-              <button className="px-3 py-1.5 text-xs rounded-lg border">
-                CII
-              </button>
-            </div>
           </div>
-          <div className="aspect-video bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg flex items-center justify-center border-2 border-dashed border-primary/20">
-            <div className="text-center">
-              <MapIcon className="h-16 w-16 text-primary/30 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-1">
-                MapLibre GL Choropleth Map
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Showing ZIP-level energy metrics for {searchZip}
-              </p>
-            </div>
+          <div className="rounded-lg overflow-hidden" style={{ height: "500px" }}>
+            <EnergyZoneMap 
+              data={data}
+              selectedZip={searchZip}
+              onZipClick={handleSearch}
+            />
           </div>
           <div className="mt-4 text-xs text-muted-foreground">
             <p>• Green: Low impact / Cleaner energy</p>

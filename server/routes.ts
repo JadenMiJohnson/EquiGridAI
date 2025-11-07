@@ -123,10 +123,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const trends = get24HourTrends();
       const cleanerHours = getCleanerHours(trends);
 
+      // Generate metrics for all Atlanta ZIPs for map choropleth
+      const allZipsMetrics: Record<string, {
+        load_kwh: number;
+        carbon_intensity_kg_per_kwh: number;
+        cii: number;
+        aqi: number;
+        price_cents_per_kwh: number;
+      }> = {};
+
+      ATLANTA_ZIPS.forEach((zipCode) => {
+        const zipKpis = getZoneKpis(zipCode);
+        allZipsMetrics[zipCode] = {
+          load_kwh: zipKpis.load_kwh,
+          carbon_intensity_kg_per_kwh: zipKpis.carbon_intensity_kg_per_kwh,
+          cii: zipKpis.cii,
+          aqi: zipKpis.aqi,
+          price_cents_per_kwh: zipKpis.price_cents_per_kwh,
+        };
+      });
+
       res.json({
         kpis,
         trends_24h: trends,
         cleaner_hours: cleanerHours,
+        all_zips_metrics: allZipsMetrics,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
