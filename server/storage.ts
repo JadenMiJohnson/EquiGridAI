@@ -1,37 +1,55 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import type { DemoRequest, IntegrationConfig, ReportVersion } from "@shared/schema";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Demo requests
+  saveDemoRequest(request: DemoRequest): Promise<void>;
+  getDemoRequests(): Promise<DemoRequest[]>;
+
+  // Integration config
+  saveIntegrationConfig(config: IntegrationConfig): Promise<void>;
+  getIntegrationConfig(): Promise<IntegrationConfig>;
+
+  // Report versions
+  saveReportVersion(version: ReportVersion): Promise<void>;
+  getReportVersions(): Promise<ReportVersion[]>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private demoRequests: DemoRequest[] = [];
+  private integrationConfig: IntegrationConfig = {
+    mode: "MOCK",
+    eiaApiKey: "",
+    airnowApiKey: "",
+  };
+  private reportVersions: ReportVersion[] = [];
 
-  constructor() {
-    this.users = new Map();
+  async saveDemoRequest(request: DemoRequest): Promise<void> {
+    this.demoRequests.push({
+      ...request,
+      createdAt: new Date().toISOString(),
+    });
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getDemoRequests(): Promise<DemoRequest[]> {
+    return this.demoRequests;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
+  async saveIntegrationConfig(config: IntegrationConfig): Promise<void> {
+    this.integrationConfig = config;
+  }
+
+  async getIntegrationConfig(): Promise<IntegrationConfig> {
+    return this.integrationConfig;
+  }
+
+  async saveReportVersion(version: ReportVersion): Promise<void> {
+    this.reportVersions.push(version);
+  }
+
+  async getReportVersions(): Promise<ReportVersion[]> {
+    return this.reportVersions.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
   }
 }
 
