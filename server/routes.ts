@@ -17,6 +17,8 @@ import {
   recommendationRequestSchema,
 } from "@shared/schema";
 import bcrypt from "bcrypt";
+import multer from "multer";
+import { extractPlaceholdersFromDocx, validateDocxFile, fillDocxTemplate } from "./lib/docx-utils";
 
 // Authentication middleware
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -212,22 +214,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== REPORTS ==========
-  app.post("/api/reports/templates/upload", requireAuth, async (req, res) => {
-    try {
-      // Mock DOCX parsing - in real implementation would use docx library
-      const placeholders = [
-        "{{COMPANY_NAME}}",
-        "{{TOTAL_COST}}",
-        "{{CARBON_EMISSIONS}}",
-        "{{CII_SCORE}}",
-        "{{ENERGY_USAGE}}",
-        "{{REPORT_DATE}}",
-      ];
+  const upload = multer({ storage: multer.memoryStorage() });
 
-      res.json({
-        name: req.body.name || "Custom Template",
+  app.post("/api/reports/templates", requireAuth, upload.single("file"), async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const file = (req as any).file;
+      const name = req.body.name;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      if (!name) {
+        return res.status(400).json({ error: "Template name is required" });
+      }
+
+      const validation = validateDocxFile(file.buffer, file.originalname);
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error });
+      }
+
+      const { placeholders, contentHash } = await extractPlaceholdersFromDocx(file.buffer);
+
+      const template = await storage.createReportTemplate({
+        userId,
+        name,
+        originalFilename: file.originalname,
+        fileData: file.buffer.toString("base64"),
+        fileSize: file.size,
+        contentHash,
+        description: req.body.description || null,
         placeholders,
       });
+
+      res.json({
+        id: template.id,
+        name: template.name,
+        placeholders: template.placeholders,
+        uploadedAt: template.uploadedAt,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/reports/templates", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const templates = await storage.getReportTemplatesByUserId(userId);
+
+      res.json(
+        templates.map((t) => ({
+          id: t.id,
+          name: t.name,
+          originalFilename: t.originalFilename,
+          fileSize: t.fileSize,
+          placeholders: t.placeholders,
+          uploadedAt: t.uploadedAt,
+          lastUsedAt: t.lastUsedAt,
+        }))
+      );
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/reports/templates/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const templateId = parseInt(req.params.id);
+
+      const template = await storage.getReportTemplateById(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      await storage.deleteReportTemplate(templateId);
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -236,27 +304,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/reports/generate", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
-      
-      // Mock report generation
-      const reportId = `report-${Date.now()}`;
-      const reportName = `ESG_Report_${new Date().toISOString().split('T')[0]}.docx`;
-      
-      const version = {
-        id: reportId,
-        userId,
-        name: reportName,
-        filePath: `/tmp/reports/${reportId}.docx`,
-        fileType: "docx" as const,
-        templateName: req.body.templateName || null,
+      const templateId = parseInt(req.body.templateId);
+
+      if (!templateId) {
+        return res.status(400).json({ error: "Template ID is required" });
+      }
+
+      const template = await storage.getReportTemplateById(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const placeholderValues: Record<string, string | number> = {
+        company_name: user.companyName,
+        report_date: new Date().toLocaleDateString(),
+        total_cost: "$45,230",
+        carbon_savings: "12.5 tons",
+        cii_improvement: "+8.2%",
+        energy_usage: "342,000 kWh",
       };
 
-      await storage.saveReportVersion(version);
+      const templateBuffer = Buffer.from(template.fileData, "base64");
+      const filledBuffer = fillDocxTemplate(templateBuffer, placeholderValues);
 
-      res.json({
-        success: true,
-        reportId,
-        downloadUrl: `/api/reports/download/${reportId}`,
-      });
+      const reportId = `report-${Date.now()}`;
+      const reportName = `${template.name}_${new Date().toISOString().split('T')[0]}.docx`;
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="${reportName}"`);
+      res.send(filledBuffer);
+
+      await storage.updateTemplateLastUsed(templateId);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
