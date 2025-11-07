@@ -1,8 +1,121 @@
+import { pgTable, text, integer, serial, timestamp, boolean, real, varchar, jsonb } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 
-// ========== AUTH & SESSION ==========
+// ========== USERS TABLE ==========
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  companyName: text("company_name").notNull(),
+  role: text("role").notNull().$type<"operator" | "cloud">(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+// ========== SESSIONS TABLE ==========
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertSessionSchema = createInsertSchema(sessions).omit({
+  createdAt: true,
+});
+
+export type Session = typeof sessions.$inferSelect;
+export type InsertSession = z.infer<typeof insertSessionSchema>;
+
+// ========== DEMO REQUESTS TABLE ==========
+export const demoRequests = pgTable("demo_requests", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  organization: text("organization").notNull(),
+  persona: text("persona").notNull().$type<"operator" | "cloud">(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertDemoRequestSchema = createInsertSchema(demoRequests).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type DemoRequest = typeof demoRequests.$inferSelect;
+export type InsertDemoRequest = z.infer<typeof insertDemoRequestSchema>;
+
+// ========== INTEGRATION CONFIGS TABLE ==========
+export const integrationConfigs = pgTable("integration_configs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  mode: text("mode").notNull().$type<"LIVE" | "MOCK">().default("MOCK"),
+  eiaApiKey: text("eia_api_key"),
+  airnowApiKey: text("airnow_api_key"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertIntegrationConfigSchema = createInsertSchema(integrationConfigs).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type IntegrationConfig = typeof integrationConfigs.$inferSelect;
+export type InsertIntegrationConfig = z.infer<typeof insertIntegrationConfigSchema>;
+
+// ========== REPORT VERSIONS TABLE ==========
+export const reportVersions = pgTable("report_versions", {
+  id: varchar("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  templateName: text("template_name"),
+  filePath: text("file_path").notNull(),
+  fileType: text("file_type").notNull().$type<"docx" | "pdf">(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertReportVersionSchema = createInsertSchema(reportVersions).omit({
+  createdAt: true,
+});
+
+export type ReportVersion = typeof reportVersions.$inferSelect;
+export type InsertReportVersion = z.infer<typeof insertReportVersionSchema>;
+
+// ========== OPTIMIZATION SCENARIOS TABLE ==========
+export const optimizationScenarios = pgTable("optimization_scenarios", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  persona: text("persona").notNull().$type<"operator" | "cloud">(),
+  controls: jsonb("controls").notNull(),
+  roiData: jsonb("roi_data").notNull(),
+  recommendations: text("recommendations"),
+  source: text("source").$type<"openai" | "rule-based">(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertOptimizationScenarioSchema = createInsertSchema(optimizationScenarios).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type OptimizationScenario = typeof optimizationScenarios.$inferSelect;
+export type InsertOptimizationScenario = z.infer<typeof insertOptimizationScenarioSchema>;
+
+// ========== ZOD SCHEMAS FOR API VALIDATION ==========
+
+// Auth & Session
 export const sessionSchema = z.object({
-  userId: z.string(),
+  userId: z.number(),
   role: z.enum(["operator", "cloud"]),
   companyName: z.string(),
   email: z.string().email(),
@@ -10,30 +123,27 @@ export const sessionSchema = z.object({
 
 export const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().min(6),
+});
+
+export const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  companyName: z.string().min(1),
+  role: z.enum(["operator", "cloud"]),
 });
 
 export const quickLoginSchema = z.object({
   persona: z.enum(["operator", "cloud"]),
 });
 
-export type Session = z.infer<typeof sessionSchema>;
+export type SessionData = z.infer<typeof sessionSchema>;
 export type LoginRequest = z.infer<typeof loginSchema>;
+export type RegisterRequest = z.infer<typeof registerSchema>;
 export type QuickLoginRequest = z.infer<typeof quickLoginSchema>;
 
-// ========== DEMO REQUEST ==========
-export const demoRequestSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  organization: z.string().min(1),
-  persona: z.enum(["operator", "cloud"]),
-  createdAt: z.string().datetime().optional(),
-});
-
-export type DemoRequest = z.infer<typeof demoRequestSchema>;
-
-// ========== INTEGRATIONS ==========
-export const integrationConfigSchema = z.object({
+// Integration Config API
+export const integrationConfigApiSchema = z.object({
   mode: z.enum(["LIVE", "MOCK"]),
   eiaApiKey: z.string().optional(),
   airnowApiKey: z.string().optional(),
@@ -51,11 +161,11 @@ export const integrationsStatusSchema = z.object({
   apis: z.array(apiStatusSchema),
 });
 
-export type IntegrationConfig = z.infer<typeof integrationConfigSchema>;
+export type IntegrationConfigApi = z.infer<typeof integrationConfigApiSchema>;
 export type ApiStatus = z.infer<typeof apiStatusSchema>;
 export type IntegrationsStatus = z.infer<typeof integrationsStatusSchema>;
 
-// ========== ZONE DATA ==========
+// Zone Data
 export const zoneKpisSchema = z.object({
   zip: z.string(),
   load_kwh: z.number(),
@@ -91,7 +201,7 @@ export type HourData = z.infer<typeof hourDataSchema>;
 export type CleanerHour = z.infer<typeof cleanerHourSchema>;
 export type ZoneData = z.infer<typeof zoneDataSchema>;
 
-// ========== METRICS & DASHBOARD ==========
+// Metrics & Dashboard
 export const kpiCardDataSchema = z.object({
   label: z.string(),
   value: z.number(),
@@ -125,7 +235,7 @@ export type KpiCardData = z.infer<typeof kpiCardDataSchema>;
 export type TimeseriesPoint = z.infer<typeof timeseriesPointSchema>;
 export type MetricsData = z.infer<typeof metricsDataSchema>;
 
-// ========== RECOMMENDATIONS ==========
+// Recommendations
 export const operatorControlsSchema = z.object({
   cooling_setpoint_delta_f: z.number().min(0).max(10),
   containment_pct: z.number().min(0).max(100),
@@ -163,7 +273,7 @@ export type RecommendationRequest = z.infer<typeof recommendationRequestSchema>;
 export type RoiData = z.infer<typeof roiDataSchema>;
 export type RecommendationResponse = z.infer<typeof recommendationResponseSchema>;
 
-// ========== REPORTS ==========
+// Reports
 export const reportTemplateUploadSchema = z.object({
   name: z.string(),
   placeholders: z.array(z.string()),
@@ -180,7 +290,7 @@ export const reportGenerateRequestSchema = z.object({
   persona: z.enum(["operator", "cloud"]),
 });
 
-export const reportVersionSchema = z.object({
+export const reportVersionApiSchema = z.object({
   id: z.string(),
   name: z.string(),
   createdAt: z.string().datetime(),
@@ -190,9 +300,9 @@ export const reportVersionSchema = z.object({
 export type ReportTemplateUpload = z.infer<typeof reportTemplateUploadSchema>;
 export type FieldMapping = z.infer<typeof fieldMappingSchema>;
 export type ReportGenerateRequest = z.infer<typeof reportGenerateRequestSchema>;
-export type ReportVersion = z.infer<typeof reportVersionSchema>;
+export type ReportVersionApi = z.infer<typeof reportVersionApiSchema>;
 
-// ========== SUMMARY ==========
+// Summary
 export const zipImpactSchema = z.object({
   zip: z.string(),
   cii_before: z.number(),

@@ -22,24 +22,18 @@ export function Footer() {
             <h3 className="font-semibold mb-4">Product</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/energy-zone">
-                  <a className="text-muted-foreground hover:text-foreground transition-colors">
-                    Energy Zone
-                  </a>
+                <Link href="/energy-zone" className="text-muted-foreground hover:text-foreground transition-colors">
+                  Energy Zone
                 </Link>
               </li>
               <li>
-                <Link href="/how-it-works">
-                  <a className="text-muted-foreground hover:text-foreground transition-colors">
-                    How It Works
-                  </a>
+                <Link href="/how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">
+                  How It Works
                 </Link>
               </li>
               <li>
-                <Link href="/pricing">
-                  <a className="text-muted-foreground hover:text-foreground transition-colors">
-                    Pricing
-                  </a>
+                <Link href="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">
+                  Pricing
                 </Link>
               </li>
             </ul>
@@ -49,17 +43,13 @@ export function Footer() {
             <h3 className="font-semibold mb-4">Company</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/about">
-                  <a className="text-muted-foreground hover:text-foreground transition-colors">
-                    About Us
-                  </a>
+                <Link href="/about" className="text-muted-foreground hover:text-foreground transition-colors">
+                  About Us
                 </Link>
               </li>
               <li>
-                <Link href="/demo">
-                  <a className="text-muted-foreground hover:text-foreground transition-colors">
-                    Request Demo
-                  </a>
+                <Link href="/demo" className="text-muted-foreground hover:text-foreground transition-colors">
+                  Request Demo
                 </Link>
               </li>
             </ul>

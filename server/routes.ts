@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import * as storage from "./storage";
 import { generateRecommendation } from "./lib/openai-client";
 import { calculateOperatorROI, calculateCloudROI } from "./lib/calculations";
 import {
@@ -12,16 +12,41 @@ import {
   ATLANTA_ZIPS,
 } from "./data/mock-data";
 import {
-  demoRequestSchema,
-  integrationConfigSchema,
+  insertDemoRequestSchema,
+  integrationConfigApiSchema,
   recommendationRequestSchema,
 } from "@shared/schema";
+import bcrypt from "bcrypt";
+
+// TODO: SECURITY - This is temporary for development. Remove in Task 2 when proper authentication is implemented.
+// Creates a default demo user for testing before auth is fully implemented
+let demoUserId: number | null = null;
+
+async function getOrCreateDemoUser(): Promise<number> {
+  if (demoUserId) return demoUserId;
+  
+  const demoEmail = "demo@equigrid.ai";
+  let user = await storage.getUserByEmail(demoEmail);
+  
+  if (!user) {
+    const passwordHash = await bcrypt.hash("demo123", 10);
+    user = await storage.createUser({
+      email: demoEmail,
+      passwordHash,
+      companyName: "Demo Company",
+      role: "operator",
+    });
+  }
+  
+  demoUserId = user.id;
+  return demoUserId;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // ========== DEMO REQUEST ==========
   app.post("/api/demo", async (req, res) => {
     try {
-      const demoRequest = demoRequestSchema.parse(req.body);
+      const demoRequest = insertDemoRequestSchema.parse(req.body);
       await storage.saveDemoRequest(demoRequest);
       res.json({ success: true });
     } catch (error: any) {
@@ -32,44 +57,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ========== INTEGRATIONS ==========
   app.get("/api/integrations/status", async (req, res) => {
     try {
-      const config = await storage.getIntegrationConfig();
+      // TODO: SECURITY - Replace with req.session.userId in Task 2
+      const userId = await getOrCreateDemoUser();
+      const config = await storage.getIntegrationConfig(userId);
+      
+      // If no config exists, return default MOCK mode
+      const mode = config?.mode || "MOCK";
       
       // Mock API status
       const apis = [
         {
           name: "EIA Open Data",
-          configured: config.mode === "LIVE" && !!config.eiaApiKey,
-          lastSync: config.mode === "LIVE" ? new Date().toISOString() : undefined,
-          status: config.mode === "LIVE" && config.eiaApiKey ? "active" : "inactive",
+          configured: mode === "LIVE" && !!config?.eiaApiKey,
+          lastSync: mode === "LIVE" ? new Date().toISOString() : undefined,
+          status: mode === "LIVE" && config?.eiaApiKey ? "active" : "inactive",
         },
         {
           name: "EPA AirNow",
-          configured: config.mode === "LIVE" && !!config.airnowApiKey,
-          lastSync: config.mode === "LIVE" ? new Date().toISOString() : undefined,
-          status: config.mode === "LIVE" && config.airnowApiKey ? "active" : "inactive",
+          configured: mode === "LIVE" && !!config?.airnowApiKey,
+          lastSync: mode === "LIVE" ? new Date().toISOString() : undefined,
+          status: mode === "LIVE" && config?.airnowApiKey ? "active" : "inactive",
         },
         {
           name: "EPA CAMD",
           configured: true,
-          lastSync: config.mode === "LIVE" ? new Date().toISOString() : undefined,
-          status: config.mode === "LIVE" ? "active" : "inactive",
+          lastSync: mode === "LIVE" ? new Date().toISOString() : undefined,
+          status: mode === "LIVE" ? "active" : "inactive",
         },
         {
           name: "US Census ACS",
           configured: true,
-          lastSync: config.mode === "LIVE" ? new Date().toISOString() : undefined,
-          status: config.mode === "LIVE" ? "active" : "inactive",
+          lastSync: mode === "LIVE" ? new Date().toISOString() : undefined,
+          status: mode === "LIVE" ? "active" : "inactive",
         },
         {
           name: "Open-Meteo",
           configured: true,
-          lastSync: config.mode === "LIVE" ? new Date().toISOString() : undefined,
-          status: config.mode === "LIVE" ? "active" : "inactive",
+          lastSync: mode === "LIVE" ? new Date().toISOString() : undefined,
+          status: mode === "LIVE" ? "active" : "inactive",
         },
       ];
 
       res.json({
-        mode: config.mode,
+        mode,
         apis,
       });
     } catch (error: any) {
@@ -79,8 +109,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/integrations/config", async (req, res) => {
     try {
-      const config = integrationConfigSchema.parse(req.body);
-      await storage.saveIntegrationConfig(config);
+      // TODO: SECURITY - Replace with req.session.userId in Task 2
+      const userId = await getOrCreateDemoUser();
+      const config = integrationConfigApiSchema.parse(req.body);
+      await storage.saveIntegrationConfig(userId, config);
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -192,15 +224,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/reports/generate", async (req, res) => {
     try {
+      // TODO: SECURITY - Replace with req.session.userId in Task 2
+      const userId = await getOrCreateDemoUser();
+      
       // Mock report generation
       const reportId = `report-${Date.now()}`;
       const reportName = `ESG_Report_${new Date().toISOString().split('T')[0]}.docx`;
       
       const version = {
         id: reportId,
+        userId,
         name: reportName,
-        createdAt: new Date().toISOString(),
-        downloadUrl: `/api/reports/download/${reportId}`,
+        filePath: `/tmp/reports/${reportId}.docx`,
+        fileType: "docx" as const,
+        templateName: req.body.templateName || null,
       };
 
       await storage.saveReportVersion(version);
@@ -208,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         success: true,
         reportId,
-        downloadUrl: version.downloadUrl,
+        downloadUrl: `/api/reports/download/${reportId}`,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
