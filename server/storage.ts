@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/neon-serverless";
 import { Pool, neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
 import * as schema from "@shared/schema";
 import { eq, desc, lte } from "drizzle-orm";
 import type {
@@ -17,8 +18,8 @@ import type {
   InsertOptimizationScenario,
 } from "@shared/schema";
 
-// Configure Neon for serverless (required for Node.js environments)
-neonConfig.fetchConnectionCache = true;
+// Configure Neon for Node.js environment
+neonConfig.webSocketConstructor = ws;
 
 // Database connection
 const connectionString = process.env.DATABASE_URL;

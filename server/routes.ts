@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import * as storage from "./storage";
 import { generateRecommendation } from "./lib/openai-client";
@@ -18,28 +18,20 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 
-// TODO: SECURITY - This is temporary for development. Remove in Task 2 when proper authentication is implemented.
-// Creates a default demo user for testing before auth is fully implemented
-let demoUserId: number | null = null;
-
-async function getOrCreateDemoUser(): Promise<number> {
-  if (demoUserId) return demoUserId;
-  
-  const demoEmail = "demo@equigrid.ai";
-  let user = await storage.getUserByEmail(demoEmail);
-  
-  if (!user) {
-    const passwordHash = await bcrypt.hash("demo123", 10);
-    user = await storage.createUser({
-      email: demoEmail,
-      passwordHash,
-      companyName: "Demo Company",
-      role: "operator",
-    });
+// Authentication middleware
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Authentication required" });
   }
-  
-  demoUserId = user.id;
-  return demoUserId;
+  next();
+}
+
+// Helper function to get userId from session (for type safety)
+function getUserId(req: Request): number {
+  if (!req.session.userId) {
+    throw new Error("User not authenticated");
+  }
+  return req.session.userId;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -55,10 +47,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== INTEGRATIONS ==========
-  app.get("/api/integrations/status", async (req, res) => {
+  app.get("/api/integrations/status", requireAuth, async (req, res) => {
     try {
-      // TODO: SECURITY - Replace with req.session.userId in Task 2
-      const userId = await getOrCreateDemoUser();
+      const userId = getUserId(req);
       const config = await storage.getIntegrationConfig(userId);
       
       // If no config exists, return default MOCK mode
@@ -107,10 +98,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/integrations/config", async (req, res) => {
+  app.post("/api/integrations/config", requireAuth, async (req, res) => {
     try {
-      // TODO: SECURITY - Replace with req.session.userId in Task 2
-      const userId = await getOrCreateDemoUser();
+      const userId = getUserId(req);
       const config = integrationConfigApiSchema.parse(req.body);
       await storage.saveIntegrationConfig(userId, config);
       res.json({ success: true });
@@ -155,7 +145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== RECOMMENDATIONS ==========
-  app.post("/api/recommendations", async (req, res) => {
+  app.post("/api/recommendations", requireAuth, async (req, res) => {
     try {
       const request = recommendationRequestSchema.parse(req.body);
       
@@ -201,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== REPORTS ==========
-  app.post("/api/reports/templates/upload", async (req, res) => {
+  app.post("/api/reports/templates/upload", requireAuth, async (req, res) => {
     try {
       // Mock DOCX parsing - in real implementation would use docx library
       const placeholders = [
@@ -222,10 +212,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/reports/generate", async (req, res) => {
+  app.post("/api/reports/generate", requireAuth, async (req, res) => {
     try {
-      // TODO: SECURITY - Replace with req.session.userId in Task 2
-      const userId = await getOrCreateDemoUser();
+      const userId = getUserId(req);
       
       // Mock report generation
       const reportId = `report-${Date.now()}`;
@@ -253,7 +242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========== SUMMARY ==========
-  app.get("/api/summary", async (req, res) => {
+  app.get("/api/summary", requireAuth, async (req, res) => {
     try {
       const summary = getSummaryData();
       res.json(summary);
@@ -262,30 +251,136 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ========== AUTH (Mock) ==========
+  // ========== AUTH ==========
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { email, password, companyName, role } = req.body;
+
+      if (!email || !password || !companyName || !role) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Check if user already exists
+      const existing = await storage.getUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ error: "Email already registered" });
+      }
+
+      // Hash password
+      const bcrypt = await import("bcrypt");
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Create user
+      const user = await storage.createUser({
+        email,
+        passwordHash,
+        companyName,
+        role,
+      });
+
+      // Create session
+      req.session.regenerate((err) => {
+        if (err) {
+          return res.status(500).json({ error: "Session creation failed" });
+        }
+
+        req.session.userId = user.id;
+        req.session.email = user.email;
+        req.session.companyName = user.companyName;
+        req.session.role = user.role;
+
+        req.session.save((err) => {
+          if (err) {
+            return res.status(500).json({ error: "Session save failed" });
+          }
+
+          res.json({
+            userId: user.id,
+            email: user.email,
+            companyName: user.companyName,
+            role: user.role,
+          });
+        });
+      });
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/auth/login", async (req, res) => {
     try {
-      // Mock authentication - accept any credentials
-      const session = {
-        userId: `user-${Date.now()}`,
-        role: req.body.role || "operator",
-        companyName: req.body.companyName || "Demo Company",
-        email: req.body.email || "demo@equigrid.ai",
-      };
-      
-      res.json(session);
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
+      }
+
+      // Find user
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // Verify password
+      const bcrypt = await import("bcrypt");
+      const valid = await bcrypt.compare(password, user.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // Prevent session fixation attacks
+      req.session.regenerate((err) => {
+        if (err) {
+          return res.status(500).json({ error: "Session creation failed" });
+        }
+
+        req.session.userId = user.id;
+        req.session.email = user.email;
+        req.session.companyName = user.companyName;
+        req.session.role = user.role;
+
+        req.session.save((err) => {
+          if (err) {
+            return res.status(500).json({ error: "Session save failed" });
+          }
+
+          res.json({
+            userId: user.id,
+            email: user.email,
+            companyName: user.companyName,
+            role: user.role,
+          });
+        });
+      });
     } catch (error: any) {
+      console.error("Login error:", error);
       res.status(500).json({ error: error.message });
     }
   });
 
   app.get("/api/auth/session", async (req, res) => {
-    // Mock session check
-    res.json({ authenticated: false });
+    if (req.session.userId) {
+      res.json({
+        authenticated: true,
+        userId: req.session.userId,
+        email: req.session.email,
+        companyName: req.session.companyName,
+        role: req.session.role,
+      });
+    } else {
+      res.json({ authenticated: false });
+    }
   });
 
   app.post("/api/auth/logout", async (req, res) => {
-    res.json({ success: true });
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.clearCookie("equigrid.sid");
+      res.json({ success: true });
+    });
   });
 
   const httpServer = createServer(app);

@@ -15,22 +15,46 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleQuickLogin = (persona: "operator" | "cloud") => {
-    const session = {
-      userId: `demo-${persona}-${Date.now()}`,
-      role: persona,
-      companyName: persona === "operator" ? "Atlanta Data Center" : "FinOptima Cloud",
-      email: `demo@${persona}.equigrid.ai`,
-    };
-    login(session);
-    toast({
-      title: "Logged in successfully",
-      description: `Welcome to EquiGrid AI as ${persona === "operator" ? "Data Center Operator" : "Cloud Company"}`,
-    });
-    setLocation("/app/dashboard");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleQuickLogin = async (persona: "operator" | "cloud") => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: `demo@${persona}.equigrid.ai`,
+          password: "demo123",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      login(data);
+      toast({
+        title: "Logged in successfully",
+        description: `Welcome to EquiGrid AI as ${persona === "operator" ? "Data Center Operator" : "Cloud Company"}`,
+      });
+      // Small delay to ensure session state updates before navigation
+      setTimeout(() => setLocation("/app/dashboard"), 0);
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       toast({
@@ -40,19 +64,38 @@ export default function Login() {
       });
       return;
     }
-    
-    const session = {
-      userId: `user-${Date.now()}`,
-      role: "operator" as const,
-      companyName: email.split("@")[0],
-      email,
-    };
-    login(session);
-    toast({
-      title: "Logged in successfully",
-      description: "Welcome to EquiGrid AI",
-    });
-    setLocation("/app/dashboard");
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      login(data);
+      toast({
+        title: "Logged in successfully",
+        description: "Welcome to EquiGrid AI",
+      });
+      // Small delay to ensure session state updates before navigation
+      setTimeout(() => setLocation("/app/dashboard"), 0);
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -88,8 +131,8 @@ export default function Login() {
                   <p className="text-sm text-muted-foreground mb-3">
                     Optimize cooling, containment, and batch scheduling for your facility
                   </p>
-                  <Button className="w-full" data-testid="button-quick-login-operator">
-                    Login as Operator
+                  <Button className="w-full" disabled={isLoading} data-testid="button-quick-login-operator">
+                    {isLoading ? "Logging in..." : "Login as Operator"}
                   </Button>
                 </div>
               </div>
@@ -105,8 +148,8 @@ export default function Login() {
                   <p className="text-sm text-muted-foreground mb-3">
                     Shift workloads across regions and times for cleaner, cheaper energy
                   </p>
-                  <Button className="w-full" data-testid="button-quick-login-cloud">
-                    Login as Cloud User
+                  <Button className="w-full" disabled={isLoading} data-testid="button-quick-login-cloud">
+                    {isLoading ? "Logging in..." : "Login as Cloud User"}
                   </Button>
                 </div>
               </div>
@@ -139,12 +182,12 @@ export default function Login() {
                   data-testid="input-password"
                 />
               </div>
-              <Button type="submit" className="w-full" data-testid="button-email-login">
-                Login
+              <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-email-login">
+                {isLoading ? "Logging in..." : "Login"}
               </Button>
             </form>
             <div className="mt-6 text-center text-sm text-muted-foreground">
-              <p>Demo mode - any email/password combination works</p>
+              <p>Use demo accounts above or register your own account</p>
             </div>
           </Card>
         </div>

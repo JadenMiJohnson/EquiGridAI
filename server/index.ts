@@ -1,8 +1,50 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { Pool } from "@neondatabase/serverless";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// PostgreSQL session store
+const PgSession = connectPgSimple(session);
+const sessionPool = new Pool({ connectionString: process.env.DATABASE_URL! });
+
+// Session configuration
+app.set("trust proxy", 1); // Trust first proxy (for secure cookies)
+
+app.use(
+  session({
+    store: new PgSession({
+      pool: sessionPool,
+      tableName: "session",
+      createTableIfMissing: true,
+      pruneSessionInterval: 60 * 15, // Clean up expired sessions every 15 min
+    }),
+    secret: process.env.SESSION_SECRET || "equigrid-dev-secret-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    name: "equigrid.sid",
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      sameSite: "lax",
+    },
+    rolling: true, // Reset expiration on every response
+  })
+);
+
+// Extend Express session type
+declare module "express-session" {
+  interface SessionData {
+    userId: number;
+    email: string;
+    companyName: string;
+    role: "operator" | "cloud";
+  }
+}
 
 declare module 'http' {
   interface IncomingMessage {

@@ -10,8 +10,8 @@ export function NavBar() {
   const { session, logout, isAuthenticated } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setLocation("/");
     setMobileMenuOpen(false);
   };
