@@ -55,6 +55,9 @@ export function NavBar() {
                 <div className="font-medium">{session?.companyName}</div>
                 <div className="text-xs text-muted-foreground capitalize">{session?.role}</div>
               </div>
+              <Button variant="default" onClick={() => setLocation("/app/dashboard")} data-testid="button-dashboard">
+                Dashboard
+              </Button>
               <Button variant="outline" onClick={handleLogout} data-testid="button-logout">
                 Logout
               </Button>
@@ -101,11 +104,22 @@ export function NavBar() {
               </Link>
             ))}
             {isAuthenticated ? (
-              <div className="py-2 border-t">
+              <div className="py-2 border-t space-y-2">
                 <div className="text-sm mb-2">
                   <div className="font-medium">{session?.companyName}</div>
                   <div className="text-xs text-muted-foreground capitalize">{session?.role}</div>
                 </div>
+                <Button 
+                  variant="default" 
+                  className="w-full" 
+                  onClick={() => {
+                    setLocation("/app/dashboard");
+                    setMobileMenuOpen(false);
+                  }} 
+                  data-testid="button-mobile-dashboard"
+                >
+                  Dashboard
+                </Button>
                 <Button variant="outline" className="w-full" onClick={handleLogout} data-testid="button-mobile-logout">
                   Logout
                 </Button>
