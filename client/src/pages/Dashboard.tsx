@@ -162,7 +162,7 @@ export default function Dashboard() {
             </Button>
           </Link>
         </div>
-        <div className="rounded-lg overflow-hidden" style={{ height: "400px" }}>
+        <div className="energy-map-wrapper rounded-lg overflow-hidden" style={{ height: "400px" }}>
           {isLoading ? (
             <div className="h-full bg-muted animate-pulse rounded" />
           ) : metrics?.map_summary ? (

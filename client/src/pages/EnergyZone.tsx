@@ -107,6 +107,13 @@ export default function EnergyZone() {
           <div className="rounded-lg overflow-hidden" style={{ height: "500px" }}>
             <EnergyZoneMap data={data} selectedZip={searchZip} onZipClick={handleSearch} />
           </div>
+          <div className="energy-map-wrapper rounded-lg overflow-hidden" style={{ height: "500px" }}>
+            <EnergyZoneMap 
+              data={data}
+              selectedZip={searchZip}
+              onZipClick={handleSearch}
+            />
+          </div>
           <div className="mt-4 text-xs text-muted-foreground">
             <p>• Green: Low impact / Cleaner energy</p>
             <p>• Yellow: Moderate impact</p>
