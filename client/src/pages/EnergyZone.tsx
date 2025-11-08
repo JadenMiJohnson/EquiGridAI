@@ -52,7 +52,7 @@ export default function EnergyZone() {
               Energy Zone Map - ZIP {searchZip}
             </h2>
           </div>
-          <div className="rounded-lg overflow-hidden" style={{ height: "500px" }}>
+          <div className="energy-map-wrapper rounded-lg overflow-hidden" style={{ height: "500px" }}>
             <EnergyZoneMap 
               data={data}
               selectedZip={searchZip}

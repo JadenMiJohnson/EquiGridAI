@@ -355,3 +355,30 @@
     inset: -1px;
   }
 }
+
+/* ────────────────────────────────────────────────────────────── */
+/* Dark mode: keep Energy Zone map crisp, don't tint/blur it     */
+/* ────────────────────────────────────────────────────────────── */
+
+.dark .energy-map-wrapper {
+  filter: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+}
+
+.dark .energy-map-wrapper .maplibregl-map,
+.dark .energy-map-wrapper canvas {
+  filter: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+  background-color: transparent !important;
+}
+
+.dark .energy-map-wrapper .maplibregl-popup-content {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
