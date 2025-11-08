@@ -11,20 +11,76 @@ import { Map as MapIcon, TrendingUp, Zap, Cloud, DollarSign, Leaf } from "lucide
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import type { ZoneData } from "@shared/schema";
 
+// Backend response structure (matches FastAPI /api/energy/zone)
+type EnergyPoint = { hour: string; carbon: number; price: number };
+type EnergyZoneResponse = {
+  zoneId: string;
+  load_kwh: number;
+  carbon_intensity: number;
+  aqi: number;
+  price_cents_per_kwh: number;
+  series: EnergyPoint[];
+  cleaner_hours_iso: string[];
+};
+
 export default function EnergyZone() {
   const [searchZip, setSearchZip] = useState(DEFAULT_ATLANTA_ZIP);
 
-  const { data, isLoading } = useQuery<ZoneData>({
+  const { data, isLoading, error } = useQuery<ZoneData>({
     queryKey: ["/api/zone", searchZip],
+    queryFn: async () => {
+      const base = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
+      const res = await fetch(`${base}/api/energy/zone/${searchZip}`);
+      if (!res.ok) throw new Error(`Energy API failed: ${res.status}`);
+      const d: EnergyZoneResponse = await res.json();
+
+      // Map backend -> frontend (ZoneData)
+      // Map backend -> frontend (ZoneData)
+      const zoneData: ZoneData = {
+        kpis: {
+          zip: searchZip,                                 // <-- required by your schema
+          load_kwh: d.load_kwh,
+          carbon_intensity_kg_per_kwh: d.carbon_intensity,
+          aqi: d.aqi,
+          price_cents_per_kwh: d.price_cents_per_kwh,
+          energy_burden_pct: 0,                           // <-- placeholder (mock)
+          svi: 0,                                         // <-- placeholder (mock)
+          cii: 0,
+        },
+        trends_24h: d.series.map((p) => ({
+          hour: new Date(p.hour).getHours(),     // number (0–23)
+          carbon_intensity: p.carbon,
+          price: p.price,
+          load: d.load_kwh,                      // backend has total, so reuse
+          temp_f: undefined,                     // optional field
+        })),
+        cleaner_hours: d.cleaner_hours_iso.map((iso) => {
+          const dt = new Date(iso);
+          return {
+            hour: dt.getHours(),
+            label: dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+          };
+        }),
+      };
+
+
+      return zoneData;
+    },
   });
 
-  const handleSearch = (zip: string) => {
-    setSearchZip(zip);
-  };
+  const handleSearch = (zip: string) => setSearchZip(zip);
+
+  if (error) {
+    return (
+      <div className="p-4 text-red-400">
+        Failed to load energy data: {(error as Error).message}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col">
-      {/* Hero */}
+      {/* Hero Section */}
       <section className="py-12 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center mb-8">
@@ -34,11 +90,7 @@ export default function EnergyZone() {
             <p className="text-xl text-muted-foreground mb-8">
               Explore real-time energy metrics, carbon intensity, and air quality by ZIP code
             </p>
-            <ZipSearchBar
-              onSearch={handleSearch}
-              initialZip={searchZip}
-              loading={isLoading}
-            />
+            <ZipSearchBar onSearch={handleSearch} initialZip={searchZip} loading={isLoading} />
           </div>
         </div>
       </section>
@@ -53,11 +105,7 @@ export default function EnergyZone() {
             </h2>
           </div>
           <div className="rounded-lg overflow-hidden" style={{ height: "500px" }}>
-            <EnergyZoneMap 
-              data={data}
-              selectedZip={searchZip}
-              onZipClick={handleSearch}
-            />
+            <EnergyZoneMap data={data} selectedZip={searchZip} onZipClick={handleSearch} />
           </div>
           <div className="mt-4 text-xs text-muted-foreground">
             <p>• Green: Low impact / Cleaner energy</p>
@@ -94,8 +142,9 @@ export default function EnergyZone() {
           />
         </div>
 
-        {/* 24h Trends */}
+        {/* 24-Hour Trends */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Carbon Intensity Chart */}
           <Card className="p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
@@ -137,6 +186,7 @@ export default function EnergyZone() {
             )}
           </Card>
 
+          {/* Price Chart */}
           <Card className="p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-primary" />
